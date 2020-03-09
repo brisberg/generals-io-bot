@@ -3,11 +3,16 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	serverPtn string = "ws://%vws.generals.io/socket.io/?EIO=3&transport=websocket"
 )
 
 // Client is a middleman between the websocket connection and the hub.
@@ -25,19 +30,14 @@ type Client struct {
 }
 
 // Connect Connects to the server and returns the connected WebSocket client
+// server param should be one of "" = US, "es" = Europe, "bot" = Bot (SF) server
 func Connect(server string, userid string, username string) (*Client, error) {
 
 	dialer := &websocket.Dialer{}
 	dialer.EnableCompression = false
-	url := "ws://ws.generals.io/socket.io/?EIO=3&transport=websocket"
+	url := fmt.Sprintf(serverPtn, server)
 
-	if server == "eu" {
-		url = "ws://euws.generals.io/socket.io/?EIO=3&transport=websocket"
-	}
-	if server == "bot" {
-		url = "ws://botws.generals.io/socket.io/?EIO=3&transport=websocket"
-	}
-
+	// Dial the server
 	c, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		return nil, err
