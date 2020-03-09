@@ -1,4 +1,5 @@
 # Binaries for programs and plugins
+generals-io-bot
 *.exe
 *.exe~
 *.dll

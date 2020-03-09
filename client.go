@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -90,6 +91,11 @@ func (c *Client) Run(finished chan bool) error {
 			// if f, ok := c.events[eventname]; ok {
 			// 	f(raw)
 			// }
+			if eventname == "game_over" {
+				c.sendMessage("leave_game")
+				c.Close()
+				os.Exit(0)
+			}
 		}
 	}
 }
