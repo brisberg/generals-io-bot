@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 )
 
@@ -13,6 +14,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	client.OnClose = func() {
+		log.Println("Close Callback. Exiting.")
+		os.Exit(1)
+	}
+
 	finished := make(chan bool)
 	go client.Run(finished)
 

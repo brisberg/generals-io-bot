@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"time"
 
@@ -33,18 +32,20 @@ type Client struct {
 	// Buffered channel of outbound messages.
 	send chan []byte
 
-	// Buffered channel of ping requests
-	ping chan bool
 	// Buffered channel of pong responses
 	pong chan bool
 
-	// Channel indicating we should cleanup this connection
+	// Channel indicating the connection is closed and we should clean up
 	closed chan bool
+
+	// Callback for when the connection is closed
+	OnClose func()
 }
 
 type connConfig struct {
-	PingInterval int `json:"pingInterval"`
-	PingTimeout  int `json:"pingTimeout"`
+	SID          string `json:"sid"` // session ID
+	PingInterval int    `json:"pingInterval"`
+	PingTimeout  int    `json:"pingTimeout"`
 }
 
 // Create dialer, and determine the URL
@@ -87,69 +88,45 @@ func Connect(server string, userid string, username string) (*Client, error) {
 	log.Println("Got: ", string(message))
 	decodeSocketIoMessage(message, msgType, &config)
 
-	// stop := schedulePings(config.PingInterval)
-	pings := make(chan bool, 1)
-
 	client := &Client{
 		conn:     c,
 		userID:   userid,
 		username: username,
 		send:     make(chan []byte, 10),
-		ping:     pings,
 		pong:     make(chan bool, 1),
 		closed:   make(chan bool),
 	}
 
-	ticker := time.NewTicker(time.Duration(config.PingInterval) * time.Millisecond)
-	// ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		for range ticker.C {
-			log.Println("Ticker buzz")
-			pings <- true
-		}
-	}()
-	go func(pings chan bool) {
-		// For each ping (from the timer?)
-		for ok := range pings {
-			if !ok {
-				return
-			}
-			// Send a ping
-			client.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
-			log.Println("Sending Ping")
-			// timeout := time.After(time.Duration(config.PingTimeout) * time.Millisecond)
-			timeout := time.After(5 * time.Second)
-			select {
-			case <-client.pong:
-				// Pong satisfied, do nothing
-				log.Println("Pong back, recieved")
-			case <-timeout:
-				log.Println("Timeout expired")
-				client.Close()
-			}
-		}
-	}(pings)
+	client.schedulePingPong(&config)
 
 	return client, nil
 }
 
-func schedulePings(delay int) chan bool {
-	stop := make(chan bool)
-	ticker := time.NewTicker(time.Duration(delay) * time.Millisecond)
-
+func (c *Client) schedulePingPong(config *connConfig) {
+	ticker := time.NewTicker(time.Duration(config.PingInterval) * time.Millisecond)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				// do stuff
-			case <-stop:
+				// Send a ping
+				c.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
+				log.Println("Sending Ping")
+				timeout := time.After(time.Duration(config.PingTimeout) * time.Millisecond)
+				select {
+				case <-c.pong:
+					// Pong satisfied, do nothing
+					log.Println("Pong back, recieved")
+				case <-timeout:
+					log.Println("Timeout expired")
+					c.Close("Error Pong Timeout. Connection Lost.")
+					return
+				}
+			case <-c.closed:
 				ticker.Stop()
 				return
 			}
 		}
 	}()
-
-	return stop
 }
 
 func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
@@ -170,19 +147,13 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 
 // Run Starts the WebSocket server
 func (c *Client) Run(finished chan bool) error {
-	// go func() {
-	// 	// I guess this is for ping-pongs?
-	// 	for range time.Tick(15 * time.Second) {
-	// 		c.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
-	// 	}
-	// }()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		for data := range c.send {
 			err := c.conn.WriteMessage(websocket.TextMessage, data)
 			log.Println("Sending: ", string(data))
 			if err != nil {
-				c.Close()
+				c.Close(fmt.Sprint("Error Sending Request: ", err))
 			}
 		}
 	}()
@@ -208,8 +179,7 @@ func (c *Client) Run(finished chan bool) error {
 			// }
 			if eventname == "game_over" {
 				c.sendMessage("leave_game")
-				c.Close()
-				os.Exit(0)
+				c.Close("Game concluded.")
 			}
 		} else if msgType == pong {
 			c.pong <- true
@@ -217,6 +187,7 @@ func (c *Client) Run(finished chan bool) error {
 	}
 }
 
+// Sends a message to the GameServer over the WebSocket
 func (c *Client) sendMessage(v ...interface{}) {
 	buf, _ := json.Marshal(v)
 	newbuf := []byte(strconv.FormatInt(msg, 10) + string(buf))
@@ -224,12 +195,16 @@ func (c *Client) sendMessage(v ...interface{}) {
 }
 
 // Close closes the WebSocket connection
-func (c *Client) Close() {
-	print("closing connection")
+func (c *Client) Close(msg string) {
+	log.Println(msg)
+	log.Println("Closing client connection...")
 	c.conn.Close()
-	close(c.ping)
-	close(c.pong)
 	close(c.closed)
+	close(c.pong)
+
+	if c.OnClose != nil {
+		c.OnClose()
+	}
 }
 
 // JoinCustomGame joins a custom game with the specified ID. Doesn't return the game object
