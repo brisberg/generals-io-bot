@@ -23,6 +23,8 @@ const (
 type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
+	// Session ID of current connection
+	sid string
 
 	// The secret UserId for the bot account
 	userID string
@@ -92,6 +94,7 @@ func Connect(server string, userid string, username string) (*Client, error) {
 		conn:     c,
 		userID:   userid,
 		username: username,
+		sid:      config.SID,
 		send:     make(chan []byte, 10),
 		pong:     make(chan bool, 1),
 		closed:   make(chan bool),
