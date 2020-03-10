@@ -1,6 +1,6 @@
 // Package client provides utilities for interacting with Generals.io over a WebSocket connection.
 //
-// User adds types and utility functions for managing a User presense on Generals.io.
+// Game adds types and interfaces for the Client to interact with a user provide Game module.
 package client
 
 import "encoding/json"

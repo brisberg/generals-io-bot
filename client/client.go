@@ -21,6 +21,13 @@ const (
 	serverPtn string = "ws://%vws.generals.io/socket.io/?EIO=3&transport=websocket"
 )
 
+// NetworkEvent is a struct representing a Network event from the server
+// It contains the event name and the reamaining raw json data
+type NetworkEvent struct {
+	Name string
+	Data json.RawMessage
+}
+
 // Client is a middleman between the websocket connection and client application or bot.
 type Client struct {
 	// The websocket connection.
@@ -34,8 +41,8 @@ type Client struct {
 	// Current Lobby
 	lobby *Lobby
 
-	// Current Game
-	Game IGame
+	// GameEvents outbound channel for game related network events
+	GameEvents chan<- NetworkEvent
 
 	// Buffered channel of outbound messages.
 	send chan []byte
@@ -45,9 +52,6 @@ type Client struct {
 
 	// Channel indicating the connection is closed and we should clean up
 	closed chan bool
-
-	// Constructor callback for a new IGame instance
-	newGameCb func() IGame
 
 	// Callback for when the connection is closed
 	OnClose func()
@@ -165,9 +169,9 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 }
 
 // UseGameConstructor sets the constructor the client should use when creating new Game instances
-func (c *Client) UseGameConstructor(cstr func() IGame) {
-	c.newGameCb = cstr
-}
+// func (c *Client) UseGameConstructor(cstr func() IGame) {
+// 	c.newGameCb = cstr
+// }
 
 // Run Starts the WebSocket server
 func (c *Client) Run() error {
@@ -207,16 +211,16 @@ func (c *Client) Run() error {
 			// 	f(raw)
 			// }
 			if eventname == "pre_game_start" {
-				c.Game = c.newGameCb()
-				c.Game.PreGameStart()
+				c.GameEvents <- NetworkEvent{eventname, raw}
 			} else if eventname == "game_start" {
-				c.Game.GameStart(raw)
+				c.GameEvents <- NetworkEvent{eventname, raw}
 			} else if eventname == "game_update" {
-				c.Game.GameUpdate(raw)
+				c.GameEvents <- NetworkEvent{eventname, raw}
 			} else if eventname == "game_over" {
+				c.GameEvents <- NetworkEvent{eventname, raw}
 				c.sendMessage(msg, "leave_game")
-				c.Game = nil
 				c.Close("Game concluded.")
+				close(c.GameEvents)
 			} else if eventname == "error_set_username" {
 				// TODO: split this into the user package
 				// Unwrap the error_set_username event and pass back to user
@@ -258,6 +262,11 @@ func (c *Client) Close(msg string) {
 }
 
 // Attack sends an attack request to the server
-func (c *Client) Attack(from, to int, is50 bool) {
-	c.sendMessage(msg, "attack", from, to, is50, c.Game.NextAttackIndex())
+func (c *Client) Attack(from, to int, is50 bool, attackIndex int) {
+	c.sendMessage(msg, "attack", from, to, is50, attackIndex)
+}
+
+// SetGameEventChan saves a channel to the client which will recieve game events
+func (c *Client) SetGameEventChan(ge chan<- NetworkEvent) {
+	c.GameEvents = ge
 }
