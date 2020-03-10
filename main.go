@@ -36,6 +36,10 @@ func main() {
 	client.SetForceStart(true)
 	time.Sleep(3000 * time.Millisecond)
 
-	client.LeaveLobby()
-	time.Sleep(10000 * time.Millisecond)
+	for {
+		time.Sleep(5000 * time.Millisecond)
+	}
+
+	// client.LeaveLobby()
+	// time.Sleep(10000 * time.Millisecond)
 }

@@ -12,8 +12,8 @@ import (
 type Lobby struct {
 	// Client used to interact with this lobby (might remove this?)
 	c *Client
-	// Name of the custom lobby
-	name string
+	// ID of the custom lobby
+	ID string
 	// Custom Map title if lobby is using one
 	mapTitle string
 	// True if we are voting to force a start
@@ -30,10 +30,10 @@ type Lobby struct {
 	teams []int
 }
 
-// NewLobby create a new Lobby instance with the given name
-func NewLobby(name string) *Lobby {
+// NewLobby create a new Lobby instance with the given ID
+func NewLobby(ID string) *Lobby {
 	return &Lobby{
-		name: name,
+		ID: ID,
 	}
 }
 
@@ -60,7 +60,7 @@ func (l *Lobby) Update(update QueueUpdate) {
 	l.teams = update.Teams
 }
 
-// JoinCustomGame joins a custom game with the specified ID. Doesn't return the game object
+// JoinCustomGame joins a custom game with the specified ID
 func (c *Client) JoinCustomGame(ID string) {
 	log.Printf("Joined custom game at http://bot.generals.io/games/%v", ID)
 	c.sendMessage(msg, "join_private", ID, c.user.userID)
@@ -76,7 +76,7 @@ func (c *Client) SetForceStart(force bool) error {
 		return errors.New("Error: Can't force start a game when not in a Lobby. Try joining a game first")
 	}
 
-	c.sendMessage(msg, "set_force_start", c.lobby.name, force)
+	c.sendMessage(msg, "set_force_start", c.lobby.ID, force)
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/brisberg/generals-io-bot/game"
 	"github.com/gorilla/websocket"
 )
 
@@ -33,6 +34,9 @@ type Client struct {
 
 	// Current Lobby
 	lobby *Lobby
+
+	// Current Game
+	game *game.Game
 
 	// Buffered channel of outbound messages.
 	send chan []byte
@@ -195,8 +199,13 @@ func (c *Client) Run() error {
 			// if f, ok := c.events[eventname]; ok {
 			// 	f(raw)
 			// }
-			if eventname == "game_over" {
+			if eventname == "pre_game_start" {
+				c.game = &game.Game{ID: "foobar"}
+			} else if eventname == "game_start" || eventname == "game_update" {
+				c.game.Dispatch(eventname, raw)
+			} else if eventname == "game_over" {
 				c.sendMessage(msg, "leave_game")
+				c.game = nil
 				c.Close("Game concluded.")
 			} else if eventname == "error_set_username" {
 				// TODO: split this into the user package
@@ -236,4 +245,9 @@ func (c *Client) Close(msg string) {
 	if c.OnClose != nil {
 		c.OnClose()
 	}
+}
+
+// Attack sends an attack request to the server
+func (c *Client) Attack(from, to int, is50 bool) {
+	c.sendMessage(msg, "attack", from, to, is50)
 }
