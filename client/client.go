@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/brisberg/generals-io-bot/game"
 	"github.com/gorilla/websocket"
 )
 
@@ -36,7 +35,7 @@ type Client struct {
 	lobby *Lobby
 
 	// Current Game
-	Game *game.Game
+	Game IGame
 
 	// Buffered channel of outbound messages.
 	send chan []byte
@@ -46,6 +45,9 @@ type Client struct {
 
 	// Channel indicating the connection is closed and we should clean up
 	closed chan bool
+
+	// Constructor callback for a new IGame instance
+	newGameCb func() IGame
 
 	// Callback for when the connection is closed
 	OnClose func()
@@ -162,6 +164,11 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 	return nil
 }
 
+// UseGameConstructor sets the constructor the client should use when creating new Game instances
+func (c *Client) UseGameConstructor(cstr func() IGame) {
+	c.newGameCb = cstr
+}
+
 // Run Starts the WebSocket server
 func (c *Client) Run() error {
 	// Launch goroutine to process outbound requests
@@ -200,9 +207,12 @@ func (c *Client) Run() error {
 			// 	f(raw)
 			// }
 			if eventname == "pre_game_start" {
-				c.Game = &game.Game{ID: "foobar"}
-			} else if eventname == "game_start" || eventname == "game_update" {
-				c.Game.Dispatch(eventname, raw)
+				c.Game = c.newGameCb()
+				c.Game.PreGameStart()
+			} else if eventname == "game_start" {
+				c.Game.GameStart(raw)
+			} else if eventname == "game_update" {
+				c.Game.GameUpdate(raw)
 			} else if eventname == "game_over" {
 				c.sendMessage(msg, "leave_game")
 				c.Game = nil

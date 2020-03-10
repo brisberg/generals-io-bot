@@ -8,43 +8,49 @@ import (
 	"time"
 
 	"github.com/brisberg/generals-io-bot/client"
+	"github.com/brisberg/generals-io-bot/game"
 )
 
 func main() {
 	fmt.Printf("Starting Generals AI Program:\n")
 
-	client, err := client.Connect("bot")
+	c, err := client.Connect("bot")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Close("Main Program Terminated")
+	defer c.Close("Main Program Terminated")
 
-	client.OnClose = func() {
+	c.OnClose = func() {
 		log.Println("Close Callback. Exiting.")
 		os.Exit(1)
 	}
 
-	go client.Run()
+	c.UseGameConstructor(func() client.IGame {
+		return &game.Game{}
+	})
 
-	if err := client.RegisterBot("mybot-batz", "[Bot]Keidence-45"); err != nil {
+	go c.Run()
+
+	if err := c.RegisterBot("mybot-batz", "[Bot]Keidence-45"); err != nil {
 		log.Fatalln(err)
 	}
 	time.Sleep(2000 * time.Millisecond)
 
-	client.JoinCustomGame("botbotbot")
+	c.JoinCustomGame("botbotbot")
 	time.Sleep(3000 * time.Millisecond)
 
-	client.SetForceStart(true)
+	c.SetForceStart(true)
 	time.Sleep(3000 * time.Millisecond)
 
+	game := game.Game(c.Game)
 	for {
 		time.Sleep(100 * time.Millisecond)
-		if client.Game.QueueLength() > 0 {
+		if game.QueueLength() > 0 {
 			continue
 		}
 		mine := []int{}
-		for i, tile := range client.Game.GameMap {
-			if tile.Faction == client.Game.PlayerIndex && tile.Armies > 1 {
+		for i, tile := range game.GameMap {
+			if tile.Faction == game.PlayerIndex && tile.Armies > 1 {
 				mine = append(mine, i)
 			}
 		}
@@ -53,8 +59,8 @@ func main() {
 		}
 		cell := rand.Intn(len(mine))
 		move := []int{}
-		for _, adjacent := range client.Game.GetAdjacents(mine[cell]) {
-			if client.Game.Walkable(adjacent) {
+		for _, adjacent := range game.GetAdjacents(mine[cell]) {
+			if game.Walkable(adjacent) {
 				move = append(move, adjacent)
 			}
 		}
@@ -62,9 +68,9 @@ func main() {
 			continue
 		}
 		movecell := rand.Intn(len(move))
-		client.Attack(mine[cell], move[movecell], false)
+		c.Attack(mine[cell], move[movecell], false)
 	}
 
-	// client.LeaveLobby()
+	// c.LeaveLobby()
 	// time.Sleep(10000 * time.Millisecond)
 }

@@ -59,112 +59,134 @@ type gameUpdate struct {
 	Turn  int        `json:"turn"`
 }
 
+// PreGameStart empty
+func (g *Game) PreGameStart() {}
+
+// GameStart process game init
+func (g *Game) GameStart(raw json.RawMessage) {
+	gameinfo := struct {
+		PlayerIndex int      `json:"playerIndex"`
+		ReplayID    string   `json:"replay_id"`
+		ChatRoom    string   `json:"chat_room"`
+		Usernames   []string `json:"usernames"`
+	}{}
+	decode := []interface{}{nil, &gameinfo}
+	json.Unmarshal(raw, &decode)
+	g.PlayerIndex = gameinfo.PlayerIndex
+	g.chatroom = gameinfo.ChatRoom
+	g.replayID = gameinfo.ReplayID
+	if g.Start != nil {
+		g.Start(gameinfo.PlayerIndex, gameinfo.Usernames)
+	}
+}
+
+// GameUpdate process game update
+func (g *Game) GameUpdate(raw json.RawMessage) {
+	update := gameUpdate{}
+	decode := []interface{}{nil, &update}
+	json.Unmarshal(raw, &decode)
+
+	newRaw := []int{}
+	difPos := 0
+	oldPos := 0
+	for difPos < len(update.MapDiff) {
+		getOld := update.MapDiff[difPos]
+		difPos++
+		for l1 := 0; l1 < getOld; l1++ {
+			newRaw = append(newRaw, g.mapRaw[oldPos])
+			oldPos++
+		}
+		if difPos >= len(update.MapDiff) {
+			break
+		}
+		getNew := update.MapDiff[difPos]
+		difPos++
+		for l1 := 0; l1 < getNew; l1++ {
+			newRaw = append(newRaw, update.MapDiff[difPos])
+			oldPos++
+			difPos++
+		}
+	}
+
+	g.mapRaw = newRaw
+
+	newRaw = []int{}
+	difPos = 0
+	oldPos = 0
+	for difPos < len(update.CitiesDiff) {
+		getOld := update.CitiesDiff[difPos]
+		difPos++
+		for l1 := 0; l1 < getOld; l1++ {
+			newRaw = append(newRaw, g.citiesRaw[oldPos])
+			oldPos++
+		}
+		if difPos >= len(update.CitiesDiff) {
+			break
+		}
+		getNew := update.CitiesDiff[difPos]
+		difPos++
+		for l1 := 0; l1 < getNew; l1++ {
+			newRaw = append(newRaw, update.CitiesDiff[difPos])
+			oldPos++
+			difPos++
+		}
+	}
+	g.citiesRaw = newRaw
+
+	if !g.inited {
+		g.Width = g.mapRaw[0]
+		g.Height = g.mapRaw[1]
+		g.GameMap = make([]Cell, g.Width*g.Height)
+		g.inited = true
+	}
+
+	g.TurnCount = update.Turn
+	g.attackIndex = update.AttackIndex
+
+	g.Scores = update.Scores
+
+	for x := 0; x < g.Width; x++ {
+		for y := 0; y < g.Height; y++ {
+			g.GameMap[y*g.Width+x].Armies = g.mapRaw[y*g.Width+x+2]
+		}
+	}
+	for x := 0; x < g.Width; x++ {
+		for y := 0; y < g.Height; y++ {
+			g.GameMap[y*g.Width+x].Faction = g.mapRaw[y*g.Width+x+2+g.Width*g.Height]
+		}
+	}
+	for _, city := range g.citiesRaw {
+		if city >= 0 {
+			g.GameMap[city].Type = City
+		}
+	}
+	for _, general := range update.Generals {
+		if general >= 0 {
+			g.GameMap[general].Type = General
+		}
+	}
+
+	if g.Update != nil {
+		g.Update(update)
+	}
+}
+
+// GameWon empty
+func (g *Game) GameWon() {}
+
+// GameLost empty
+func (g *Game) GameLost() {}
+
+// GameOver empty
+func (g *Game) GameOver() {}
+
 // Dispatch handles any game events
 func (g *Game) Dispatch(event string, data json.RawMessage) {
 	switch event {
 	case "game_start":
-		gameinfo := struct {
-			PlayerIndex int      `json:"playerIndex"`
-			ReplayID    string   `json:"replay_id"`
-			ChatRoom    string   `json:"chat_room"`
-			Usernames   []string `json:"usernames"`
-		}{}
-		decode := []interface{}{nil, &gameinfo}
-		json.Unmarshal(data, &decode)
-		g.PlayerIndex = gameinfo.PlayerIndex
-		g.chatroom = gameinfo.ChatRoom
-		g.replayID = gameinfo.ReplayID
-		if g.Start != nil {
-			g.Start(gameinfo.PlayerIndex, gameinfo.Usernames)
-		}
+
 	case "game_update":
-		update := gameUpdate{}
-		decode := []interface{}{nil, &update}
-		json.Unmarshal(data, &decode)
 
-		newRaw := []int{}
-		difPos := 0
-		oldPos := 0
-		for difPos < len(update.MapDiff) {
-			getOld := update.MapDiff[difPos]
-			difPos++
-			for l1 := 0; l1 < getOld; l1++ {
-				newRaw = append(newRaw, g.mapRaw[oldPos])
-				oldPos++
-			}
-			if difPos >= len(update.MapDiff) {
-				break
-			}
-			getNew := update.MapDiff[difPos]
-			difPos++
-			for l1 := 0; l1 < getNew; l1++ {
-				newRaw = append(newRaw, update.MapDiff[difPos])
-				oldPos++
-				difPos++
-			}
-		}
-
-		g.mapRaw = newRaw
-
-		newRaw = []int{}
-		difPos = 0
-		oldPos = 0
-		for difPos < len(update.CitiesDiff) {
-			getOld := update.CitiesDiff[difPos]
-			difPos++
-			for l1 := 0; l1 < getOld; l1++ {
-				newRaw = append(newRaw, g.citiesRaw[oldPos])
-				oldPos++
-			}
-			if difPos >= len(update.CitiesDiff) {
-				break
-			}
-			getNew := update.CitiesDiff[difPos]
-			difPos++
-			for l1 := 0; l1 < getNew; l1++ {
-				newRaw = append(newRaw, update.CitiesDiff[difPos])
-				oldPos++
-				difPos++
-			}
-		}
-		g.citiesRaw = newRaw
-
-		if !g.inited {
-			g.Width = g.mapRaw[0]
-			g.Height = g.mapRaw[1]
-			g.GameMap = make([]Cell, g.Width*g.Height)
-			g.inited = true
-		}
-
-		g.TurnCount = update.Turn
-		g.attackIndex = update.AttackIndex
-
-		g.Scores = update.Scores
-
-		for x := 0; x < g.Width; x++ {
-			for y := 0; y < g.Height; y++ {
-				g.GameMap[y*g.Width+x].Armies = g.mapRaw[y*g.Width+x+2]
-			}
-		}
-		for x := 0; x < g.Width; x++ {
-			for y := 0; y < g.Height; y++ {
-				g.GameMap[y*g.Width+x].Faction = g.mapRaw[y*g.Width+x+2+g.Width*g.Height]
-			}
-		}
-		for _, city := range g.citiesRaw {
-			if city >= 0 {
-				g.GameMap[city].Type = City
-			}
-		}
-		for _, general := range update.Generals {
-			if general >= 0 {
-				g.GameMap[general].Type = General
-			}
-		}
-
-		if g.Update != nil {
-			g.Update(update)
-		}
 	}
 }
 
