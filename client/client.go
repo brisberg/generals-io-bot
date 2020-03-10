@@ -69,7 +69,7 @@ func Connect(server string) (*Client, error) {
 	}
 
 	// Read connection config from server
-	// Expect msg type to be `0`
+	// Expect msg type to be `0` (open)
 	_, configMsg, err := c.ReadMessage()
 	if err != nil {
 		return nil, err
@@ -90,6 +90,7 @@ func Connect(server string) (*Client, error) {
 	if string(message) != "40" {
 		return nil, errors.New(fmt.Sprint("Error: Expected '40' success type: got ", msgType))
 	}
+	log.Println("Connection Established.")
 
 	user := &User{
 		usernamec: make(chan string, 1),
@@ -137,6 +138,8 @@ func (c *Client) schedulePingPong(config *connConfig) {
 	}
 }
 
+// Decodes the packet type and the data from a socket.io message
+// TODO: Refactor this to be more flexible to multiplex on the packettype
 func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 	dec := json.NewDecoder(bytes.NewBuffer(msg))
 	if err := dec.Decode(&msgType); err != nil {
@@ -180,6 +183,7 @@ func (c *Client) Run() error {
 		var msgType int64
 		dec.Decode(&msgType)
 
+		// Dispatch the message to various listeners
 		if msgType == msg {
 			var raw json.RawMessage
 			dec.Decode(&raw)
