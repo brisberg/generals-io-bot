@@ -28,6 +28,8 @@ type Client struct {
 	// Session ID of current connection
 	sid string
 
+	// Current user object (might replace the ones below)
+	user *User
 	// The secret UserId for the bot account
 	userID string
 	// Public Username for the bot
@@ -93,8 +95,16 @@ func Connect(server string, userid string, username string) (*Client, error) {
 		return nil, errors.New(fmt.Sprint("Error: Expected '40' success type: got ", msgType))
 	}
 
+	user := &User{
+		userID:    userid,
+		username:  username,
+		usernamec: make(chan string, 1),
+		usererrc:  make(chan string, 1),
+	}
+
 	client := &Client{
 		conn:     c,
+		user:     user,
 		userID:   userid,
 		username: username,
 		sid:      config.SID,
@@ -103,35 +113,36 @@ func Connect(server string, userid string, username string) (*Client, error) {
 		closed:   make(chan bool),
 	}
 
-	client.registerBotUsername()
-
-	client.schedulePingPong(&config)
+	go client.schedulePingPong(&config)
 
 	return client, nil
 }
 
+// Set up repeated ping requests to the server
+// Respects the pingInterval and pingTimeout provided by the server when opening the connection
+// If a pong ("3") is not recieved before the timeout, the server is assumed nonresponsive and
+// the connection is closed
 func (c *Client) schedulePingPong(config *connConfig) {
 	ticker := time.NewTicker(time.Duration(config.PingInterval) * time.Millisecond)
-	go func() {
-		for {
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Send a ping
+			c.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
+			timeout := time.After(time.Duration(config.PingTimeout) * time.Millisecond)
 			select {
-			case <-ticker.C:
-				// Send a ping
-				c.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
-				timeout := time.After(time.Duration(config.PingTimeout) * time.Millisecond)
-				select {
-				case <-c.pong:
-					// Pong satisfied, do nothing
-				case <-timeout:
-					c.Close("Error Pong Timeout. Connection Lost.")
-					return
-				}
-			case <-c.closed:
-				ticker.Stop()
+			case <-c.pong:
+				// Pong satisfied, do nothing
+			case <-timeout:
+				c.Close("Error Pong Timeout. Connection Lost.")
 				return
 			}
+		case <-c.closed:
+			return
 		}
-	}()
+	}
 }
 
 func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
@@ -153,7 +164,8 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 }
 
 // Run Starts the WebSocket server
-func (c *Client) Run(finished chan bool) error {
+func (c *Client) Run() error {
+	// Launch goroutine to process outbound requests
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		for data := range c.send {
@@ -164,9 +176,11 @@ func (c *Client) Run(finished chan bool) error {
 			}
 		}
 	}()
-	finished <- true
+
+	// Loop and process inbound responses
 	for {
 		_, message, err := c.conn.ReadMessage()
+		log.Println(message)
 		if err != nil {
 			return err
 		}
@@ -187,19 +201,32 @@ func (c *Client) Run(finished chan bool) error {
 			// 	f(raw)
 			// }
 			if eventname == "game_over" {
-				c.sendMessage("leave_game")
+				c.sendMessage(msg, "leave_game")
 				c.Close("Game concluded.")
+			} else if eventname == "error_set_username" {
+				// TODO: split this into the user package
+				// Unwrap the error_set_username event and pass back to user
+				data := []string{}
+				json.Unmarshal(raw, &data)
+				c.user.usererrc <- data[1]
 			}
 		} else if msgType == pong {
 			c.pong <- true
+		} else if msgType == 430 {
+			// TODO split this into the user package
+			var raw json.RawMessage
+			dec.Decode(&raw)
+			var name []string
+			json.Unmarshal(raw, &name)
+			c.user.usernamec <- name[0]
 		}
 	}
 }
 
 // Sends a message to the GameServer over the WebSocket
-func (c *Client) sendMessage(v ...interface{}) {
+func (c *Client) sendMessage(code int64, v ...interface{}) {
 	buf, _ := json.Marshal(v)
-	newbuf := []byte(strconv.FormatInt(msg, 10) + string(buf))
+	newbuf := []byte(strconv.FormatInt(code, 10) + string(buf))
 	c.send <- newbuf
 }
 

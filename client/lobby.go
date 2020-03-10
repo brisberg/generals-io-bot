@@ -63,7 +63,7 @@ func (l *Lobby) Update(update QueueUpdate) {
 // JoinCustomGame joins a custom game with the specified ID. Doesn't return the game object
 func (c *Client) JoinCustomGame(ID string) {
 	log.Println("Joined custom game at http://bot.generals.io/games/", ID)
-	c.sendMessage("join_private", ID, c.userID)
+	c.sendMessage(msg, "join_private", ID, c.userID)
 	c.lobby = NewLobby(ID)
 	// g := &Game{c: c, ID: ID}
 	// g.registerEvents()
@@ -76,7 +76,7 @@ func (c *Client) SetForceStart(force bool) error {
 		return errors.New("Error: Can't force start a game when not in a Lobby. Try joining a game first")
 	}
 
-	c.sendMessage("set_force_start", c.lobby.name, force)
+	c.sendMessage(msg, "set_force_start", c.lobby.name, force)
 	return nil
 }
 
@@ -86,7 +86,7 @@ func (c *Client) LeaveLobby() error {
 		return errors.New("Error: Can't force start a game when not in a Lobby. Try joining a game first")
 	}
 
-	c.sendMessage("cancel")
+	c.sendMessage(msg, "cancel")
 	c.lobby = nil
 	return nil
 }

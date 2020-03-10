@@ -4,12 +4,8 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
-	"strconv"
-
-	"github.com/gorilla/websocket"
+	"time"
 )
 
 // User holds information about a user or botuser on Generals.io
@@ -18,36 +14,74 @@ type User struct {
 	username string
 	// rank int
 	// stars int
+
+	// Buffered Channel for the results of a get_username request
+	usernamec chan string
+	// Buffered Channel for the results of a set_username request
+	usererrc chan string
 }
 
-type setUserNameResp string
-
-func (c *Client) registerBotUsername() error {
-	// Send the Username change
-	c.sendMessage("set_username", c.userID, c.username)
-	buf, _ := json.Marshal([]string{"set_username", c.userID, c.username})
-	newbuf := []byte(strconv.FormatInt(msg, 10) + string(buf))
-	if err := c.conn.WriteMessage(websocket.TextMessage, newbuf); err != nil {
-		return err
+// RegisterBot verifies that the given UserID is associated with the resired username.
+// If it is not, attmpts to update the user name to the given one.
+//
+// This will fail if the username doesn't start with `[BOT]`, the username is already
+// taken by another user, or the given userID is already associated with a different
+// username.
+func (c *Client) RegisterBot(userID string, username string) error {
+	if userID == "" || username == "" {
+		return fmt.Errorf("Error: Must specify both a userID and a username to register a bot")
 	}
 
-	// Check the error username response
-	// Empty means success, "User name in use" assume that that means we own it
-	_, usernameMsg, err := c.conn.ReadMessage()
+	// Fetch the current username
+	curName, err := c.getUsername()
 	if err != nil {
 		return err
 	}
-	var msgType int
-	var nameError string
 
-	log.Println("Got: ", string(usernameMsg))
-	decodeSocketIoMessage(usernameMsg, msgType, &nameError)
-
-	log.Println(nameError)
-
-	if nameError == "" || nameError == "This username is already taken." {
-		return nil
+	// If username is different than desired name, update it
+	if curName != username {
+		if err := c.setUsername(userID, username); err != nil {
+			return err
+		}
 	}
 
-	return fmt.Errorf("Error: Could not register bot under username %v (%v)", c.username, nameError)
+	return nil
+}
+
+func (c *Client) getUsername() (string, error) {
+	if c.userID == "" {
+		return "", fmt.Errorf("Error: Could not fetch Username. UserID not set")
+	}
+
+	c.sendMessage(420, "get_username", c.userID)
+
+	// Block on waiting for the message dispatch
+	select {
+	case n := <-c.user.usernamec:
+		return n, nil
+	case <-time.After(20 * time.Second):
+		return "", fmt.Errorf("Error: Could not fetch Username. Server never replied with it")
+	}
+}
+
+type getUserNameResp []string
+
+func (c *Client) handleGetUsername() {}
+
+type setUserNameResp string
+
+func (c *Client) setUsername(userID string, username string) error {
+	// Send the Username change
+	c.sendMessage(msg, "set_username", c.userID, c.username)
+
+	// Block on waiting for the message dispatch
+	select {
+	case e := <-c.user.usererrc:
+		if e == "" {
+			return nil
+		}
+		return fmt.Errorf("Error: Could not register bot under username %v: %v", username, e)
+	case <-time.After(20 * time.Second):
+		return fmt.Errorf("Error: Could not register bot under new username. Server timeout")
+	}
 }
