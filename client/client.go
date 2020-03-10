@@ -1,4 +1,5 @@
-package main
+// Package client provides utilities for interacting with Generals.io over a WebSocket connection.
+package client
 
 import (
 	"bytes"
@@ -20,7 +21,7 @@ const (
 	serverPtn string = "ws://%vws.generals.io/socket.io/?EIO=3&transport=websocket"
 )
 
-// Client is a middleman between the websocket connection and the hub.
+// Client is a middleman between the websocket connection and client application or bot.
 type Client struct {
 	// The websocket connection.
 	conn *websocket.Conn
@@ -31,6 +32,9 @@ type Client struct {
 	userID string
 	// Public Username for the bot
 	username string
+
+	// Current Lobby
+	lobby *Lobby
 
 	// Buffered channel of outbound messages.
 	send chan []byte
@@ -222,6 +226,8 @@ func (c *Client) Run(finished chan bool) error {
 			eventname := ""
 			data := []interface{}{&eventname}
 			json.Unmarshal(raw, &data)
+			log.Println(eventname)
+			log.Println(data)
 			// if f, ok := c.events[eventname]; ok {
 			// 	f(raw)
 			// }
@@ -253,13 +259,4 @@ func (c *Client) Close(msg string) {
 	if c.OnClose != nil {
 		c.OnClose()
 	}
-}
-
-// JoinCustomGame joins a custom game with the specified ID. Doesn't return the game object
-func (c *Client) JoinCustomGame(ID string) {
-	log.Println("Joined custom game at http://bot.generals.io/games/", ID)
-	c.sendMessage("join_private", ID, c.userID)
-	// g := &Game{c: c, ID: ID}
-	// g.registerEvents()
-	// return g
 }

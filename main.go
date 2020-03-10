@@ -5,12 +5,14 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/brisberg/generals-io-bot/client"
 )
 
 func main() {
 	fmt.Printf("Starting Generals AI Program:\n")
 
-	client, err := Connect("bot", "mybot-batz", "[Bot]Keidence-45")
+	client, err := client.Connect("bot", "mybot-batz", "[Bot]Keidence-45")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,8 +35,10 @@ func main() {
 	<-finished
 	client.JoinCustomGame("botbotbot")
 
-	time.Sleep(3000)
-	client.sendMessage("set_force_start", "botbotbot", true)
+	time.Sleep(3000 * time.Millisecond)
+	client.SetForceStart(true)
+	time.Sleep(3000 * time.Millisecond)
+	client.LeaveLobby()
 
 	for {
 		time.Sleep(1000)
