@@ -16,6 +16,13 @@ func main() {
 	finished := make(chan bool)
 	go client.Run(finished)
 
+	// go func() {
+	// 	_, ok := <-client.closed
+	// 	if !ok {
+	// 		os.Exit(1)
+	// 	}
+	// }()
+
 	<-finished
 	client.JoinCustomGame("botbotbot")
 
