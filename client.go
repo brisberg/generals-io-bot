@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -80,15 +81,26 @@ func Connect(server string, userid string, username string) (*Client, error) {
 
 	// Read connection config from server
 	// Expect msg type to be `0`
-	_, message, err := c.ReadMessage()
+	_, configMsg, err := c.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
 	var msgType int
 	config := connConfig{}
 
-	log.Println("Got: ", string(message))
-	decodeSocketIoMessage(message, msgType, &config)
+	log.Println("Got: ", string(configMsg))
+	decodeSocketIoMessage(configMsg, msgType, &config)
+
+	// Read success message from server
+	// Expect msg type to be `40`
+	_, message, err := c.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+
+	if string(message) != "40" {
+		return nil, errors.New(fmt.Sprint("Error: Expected '40' success type: got ", msgType))
+	}
 
 	client := &Client{
 		conn:     c,
@@ -99,6 +111,8 @@ func Connect(server string, userid string, username string) (*Client, error) {
 		pong:     make(chan bool, 1),
 		closed:   make(chan bool),
 	}
+
+	client.registerBotUsername()
 
 	client.schedulePingPong(&config)
 
@@ -113,14 +127,11 @@ func (c *Client) schedulePingPong(config *connConfig) {
 			case <-ticker.C:
 				// Send a ping
 				c.send <- []byte(strconv.FormatInt(ping, 10) + " ping")
-				log.Println("Sending Ping")
 				timeout := time.After(time.Duration(config.PingTimeout) * time.Millisecond)
 				select {
 				case <-c.pong:
 					// Pong satisfied, do nothing
-					log.Println("Pong back, recieved")
 				case <-timeout:
-					log.Println("Timeout expired")
 					c.Close("Error Pong Timeout. Connection Lost.")
 					return
 				}
@@ -141,11 +152,45 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 	if err := dec.Decode(&raw); err != nil {
 		return err
 	}
+	log.Println(raw)
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return err
 	}
+	log.Println(data)
 
 	return nil
+}
+
+type setUserNameResp string
+
+func (c *Client) registerBotUsername() error {
+	// Send the Username change
+	c.sendMessage("set_username", c.userID, c.username)
+	buf, _ := json.Marshal([]string{"set_username", c.userID, c.username})
+	newbuf := []byte(strconv.FormatInt(msg, 10) + string(buf))
+	if err := c.conn.WriteMessage(websocket.TextMessage, newbuf); err != nil {
+		return err
+	}
+
+	// Check the error username response
+	// Empty means success, "User name in use" assume that that means we own it
+	_, usernameMsg, err := c.conn.ReadMessage()
+	if err != nil {
+		return err
+	}
+	var msgType int
+	var nameError string
+
+	log.Println("Got: ", string(usernameMsg))
+	decodeSocketIoMessage(usernameMsg, msgType, &nameError)
+
+	log.Println(nameError)
+
+	if nameError == "" || nameError == "This username is already taken." {
+		return nil
+	}
+
+	return fmt.Errorf("Error: Could not register bot under username %v (%v)", c.username, nameError)
 }
 
 // Run Starts the WebSocket server
