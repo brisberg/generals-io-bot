@@ -1,6 +1,6 @@
 // Package client provides utilities for interacting with Generals.io over a WebSocket connection.
 //
-//Lobby adds types and utility functions for joining/leaving and interacting with Lobbies on Generals.io.
+// Lobby adds types and utility functions for joining/leaving and interacting with Lobbies on Generals.io.
 package client
 
 import (

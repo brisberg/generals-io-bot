@@ -152,38 +152,6 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 	return nil
 }
 
-type setUserNameResp string
-
-func (c *Client) registerBotUsername() error {
-	// Send the Username change
-	c.sendMessage("set_username", c.userID, c.username)
-	buf, _ := json.Marshal([]string{"set_username", c.userID, c.username})
-	newbuf := []byte(strconv.FormatInt(msg, 10) + string(buf))
-	if err := c.conn.WriteMessage(websocket.TextMessage, newbuf); err != nil {
-		return err
-	}
-
-	// Check the error username response
-	// Empty means success, "User name in use" assume that that means we own it
-	_, usernameMsg, err := c.conn.ReadMessage()
-	if err != nil {
-		return err
-	}
-	var msgType int
-	var nameError string
-
-	log.Println("Got: ", string(usernameMsg))
-	decodeSocketIoMessage(usernameMsg, msgType, &nameError)
-
-	log.Println(nameError)
-
-	if nameError == "" || nameError == "This username is already taken." {
-		return nil
-	}
-
-	return fmt.Errorf("Error: Could not register bot under username %v (%v)", c.username, nameError)
-}
-
 // Run Starts the WebSocket server
 func (c *Client) Run(finished chan bool) error {
 	go func() {
