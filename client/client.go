@@ -230,7 +230,7 @@ func (c *Client) Run() error {
 			}
 		} else if msgType == pong {
 			c.pong <- true
-		} else if msgType == 430 {
+		} else if msgType == 430 { // Special 430 code for username response
 			// TODO split this into the user package
 			var raw json.RawMessage
 			dec.Decode(&raw)
