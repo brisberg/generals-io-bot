@@ -12,7 +12,7 @@ import (
 func main() {
 	fmt.Printf("Starting Generals AI Program:\n")
 
-	client, err := client.Connect("bot", "mybot-batz", "[BotKeidence-45")
+	client, err := client.Connect("bot")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,7 +25,9 @@ func main() {
 
 	go client.Run()
 
-	client.RegisterBot("mybot-batz", "[Bot]Keidence-45")
+	if err := client.RegisterBot("mybot-batz", "[Bot]Keidence-45"); err != nil {
+		log.Fatalln(err)
+	}
 	time.Sleep(2000 * time.Millisecond)
 
 	client.JoinCustomGame("botbotbot")
@@ -35,8 +37,5 @@ func main() {
 	time.Sleep(3000 * time.Millisecond)
 
 	client.LeaveLobby()
-
-	for {
-		time.Sleep(1000)
-	}
+	time.Sleep(10000 * time.Millisecond)
 }

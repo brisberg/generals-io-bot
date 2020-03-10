@@ -28,12 +28,8 @@ type Client struct {
 	// Session ID of current connection
 	sid string
 
-	// Current user object (might replace the ones below)
+	// Current User object
 	user *User
-	// The secret UserId for the bot account
-	userID string
-	// Public Username for the bot
-	username string
 
 	// Current Lobby
 	lobby *Lobby
@@ -60,7 +56,7 @@ type connConfig struct {
 // Connect Connects to the server and returns the connected WebSocket client
 //
 // Server param should be one of "" = US, "es" = Europe, "bot" = Bot (SF) server
-func Connect(server string, userid string, username string) (*Client, error) {
+func Connect(server string) (*Client, error) {
 
 	dialer := &websocket.Dialer{}
 	dialer.EnableCompression = false
@@ -96,21 +92,17 @@ func Connect(server string, userid string, username string) (*Client, error) {
 	}
 
 	user := &User{
-		userID:    userid,
-		username:  username,
 		usernamec: make(chan string, 1),
 		usererrc:  make(chan string, 1),
 	}
 
 	client := &Client{
-		conn:     c,
-		user:     user,
-		userID:   userid,
-		username: username,
-		sid:      config.SID,
-		send:     make(chan []byte, 10),
-		pong:     make(chan bool, 1),
-		closed:   make(chan bool),
+		conn:   c,
+		user:   user,
+		sid:    config.SID,
+		send:   make(chan []byte, 10),
+		pong:   make(chan bool, 1),
+		closed: make(chan bool),
 	}
 
 	go client.schedulePingPong(&config)
@@ -154,11 +146,11 @@ func decodeSocketIoMessage(msg []byte, msgType int, data interface{}) error {
 	if err := dec.Decode(&raw); err != nil {
 		return err
 	}
-	log.Println(raw)
+	// log.Println(raw)
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return err
 	}
-	log.Println(data)
+	// log.Println(data)
 
 	return nil
 }
@@ -180,7 +172,6 @@ func (c *Client) Run() error {
 	// Loop and process inbound responses
 	for {
 		_, message, err := c.conn.ReadMessage()
-		log.Println(message)
 		if err != nil {
 			return err
 		}
@@ -195,8 +186,8 @@ func (c *Client) Run() error {
 			eventname := ""
 			data := []interface{}{&eventname}
 			json.Unmarshal(raw, &data)
-			log.Println(eventname)
-			log.Println(data)
+			// log.Println(eventname)
+			// log.Println(data)
 			// if f, ok := c.events[eventname]; ok {
 			// 	f(raw)
 			// }

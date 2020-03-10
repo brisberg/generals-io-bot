@@ -10,7 +10,9 @@ import (
 
 // User holds information about a user or botuser on Generals.io
 type User struct {
-	userID   string
+	// The secret UserId for the bot account
+	userID string
+	// Public Username for the bot
 	username string
 	// rank int
 	// stars int
@@ -33,7 +35,7 @@ func (c *Client) RegisterBot(userID string, username string) error {
 	}
 
 	// Fetch the current username
-	curName, err := c.getUsername()
+	curName, err := c.getUsername(userID)
 	if err != nil {
 		return err
 	}
@@ -45,15 +47,17 @@ func (c *Client) RegisterBot(userID string, username string) error {
 		}
 	}
 
+	c.user.userID = userID
+	c.user.username = username
 	return nil
 }
 
-func (c *Client) getUsername() (string, error) {
-	if c.userID == "" {
-		return "", fmt.Errorf("Error: Could not fetch Username. UserID not set")
+func (c *Client) getUsername(userID string) (string, error) {
+	if userID == "" {
+		return "", fmt.Errorf("Error: Could not fetch Username without a UserID")
 	}
 
-	c.sendMessage(420, "get_username", c.userID)
+	c.sendMessage(420, "get_username", userID)
 
 	// Block on waiting for the message dispatch
 	select {
@@ -72,7 +76,7 @@ type setUserNameResp string
 
 func (c *Client) setUsername(userID string, username string) error {
 	// Send the Username change
-	c.sendMessage(msg, "set_username", c.userID, c.username)
+	c.sendMessage(msg, "set_username", c.user.userID, c.user.username)
 
 	// Block on waiting for the message dispatch
 	select {
