@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -37,7 +38,31 @@ func main() {
 	time.Sleep(3000 * time.Millisecond)
 
 	for {
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
+		if client.Game.QueueLength() > 0 {
+			continue
+		}
+		mine := []int{}
+		for i, tile := range client.Game.GameMap {
+			if tile.Faction == client.Game.PlayerIndex && tile.Armies > 1 {
+				mine = append(mine, i)
+			}
+		}
+		if len(mine) == 0 {
+			continue
+		}
+		cell := rand.Intn(len(mine))
+		move := []int{}
+		for _, adjacent := range client.Game.GetAdjacents(mine[cell]) {
+			if client.Game.Walkable(adjacent) {
+				move = append(move, adjacent)
+			}
+		}
+		if len(move) == 0 {
+			continue
+		}
+		movecell := rand.Intn(len(move))
+		client.Attack(mine[cell], move[movecell], false)
 	}
 
 	// client.LeaveLobby()

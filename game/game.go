@@ -245,6 +245,12 @@ func (g *Game) Walkable(cell int) bool {
 	return g.GameMap[cell].Faction != -2 && g.GameMap[cell].Faction != -4
 }
 
+// NextAttackIndex temp function meant to simulate the old behavior of attack indexes
+func (g *Game) NextAttackIndex() int {
+	g.lastAttack++
+	return g.lastAttack
+}
+
 // Attack sends an attack request to the server
 // func (g *Game) Attack(from, to int, is50 bool) {
 // 	g.lastAttack++

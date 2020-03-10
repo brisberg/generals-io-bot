@@ -36,7 +36,7 @@ type Client struct {
 	lobby *Lobby
 
 	// Current Game
-	game *game.Game
+	Game *game.Game
 
 	// Buffered channel of outbound messages.
 	send chan []byte
@@ -200,12 +200,12 @@ func (c *Client) Run() error {
 			// 	f(raw)
 			// }
 			if eventname == "pre_game_start" {
-				c.game = &game.Game{ID: "foobar"}
+				c.Game = &game.Game{ID: "foobar"}
 			} else if eventname == "game_start" || eventname == "game_update" {
-				c.game.Dispatch(eventname, raw)
+				c.Game.Dispatch(eventname, raw)
 			} else if eventname == "game_over" {
 				c.sendMessage(msg, "leave_game")
-				c.game = nil
+				c.Game = nil
 				c.Close("Game concluded.")
 			} else if eventname == "error_set_username" {
 				// TODO: split this into the user package
@@ -249,5 +249,5 @@ func (c *Client) Close(msg string) {
 
 // Attack sends an attack request to the server
 func (c *Client) Attack(from, to int, is50 bool) {
-	c.sendMessage(msg, "attack", from, to, is50)
+	c.sendMessage(msg, "attack", from, to, is50, c.Game.NextAttackIndex())
 }
