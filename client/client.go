@@ -55,19 +55,6 @@ type connConfig struct {
 	PingTimeout  int    `json:"pingTimeout"`
 }
 
-// Create dialer, and determine the URL
-// Dial the server
-// Read one message to get back the connection config
-// 	Read out the SID, PingInterval, and PingTimeout
-// 	Start a ticker with the Ping Interval
-// 		Each time the ticker goes off, send a `2` message
-// 		Wait up to PingTimeout
-// 			If we haven't returned a `3`, assume server is down. Close connection
-// 			If we did, wait for next timer tick
-// 	When the client shuts down, stop the timer
-// Read a second message to confirm it is '40'
-// Return fully connected Client
-
 // Connect Connects to the server and returns the connected WebSocket client
 //
 // Server param should be one of "" = US, "es" = Europe, "bot" = Bot (SF) server
